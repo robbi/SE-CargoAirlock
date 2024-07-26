@@ -1,0 +1,14 @@
+﻿R e a d m e
+-----------
+
+This variables are customizable parameters:
+  - Manage_group_named
+    The script manages the group with name containing this string
+  - Interior_door_name
+    The name part that identifies internal airlock doors
+  - Exterior_door_name
+    The name part that identifies external airlock doors
+  - Block_setup_refresh_time_in_sec
+    Search for change every 15 sec by default
+  - Min_time_doors_kept_open_in_sec
+    The doors are kept open at least 5 sec by default
