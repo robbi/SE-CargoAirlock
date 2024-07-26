@@ -268,7 +268,7 @@ Gyrophare: {hasGyro}";
                         {
                             DisableProbes();
                             el2.ResetTimeout(_timeoutLookup[eventMap.Key]);
-                            el2.AddTask(eventTask.Value);
+                            if (eventTask.Value != null) el2.AddTask(eventTask.Value);
                         }, condition, 100);
                     }
                 }
