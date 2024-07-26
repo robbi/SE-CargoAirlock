@@ -25,13 +25,13 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
+        private const int DEBUG = 3;
         private const string Manage_group_named = "CargoAirlock";
         private const string Interior_door_name = "internal";
         private const string Exterior_door_name = "external";
         private const double Block_setup_refresh_time_in_sec = 15;
         private const double Min_time_doors_kept_open_in_sec = 5;
         private const double Max_action_time_in_sec = 30;
-        private const int DEBUG = 0;
 
         /*
          * Please do not change anything past this point
@@ -72,8 +72,8 @@ namespace IngameScript
 
         public void Debug(string msg, int level=0)
         {
-            if (DEBUG <= 0 || DEBUG < level) return;
-            Me.CustomData += $"# {DateTime.Now.TimeOfDay} {msg}\n";
+            if (DEBUG <= 0 || (DEBUG & level) == 0) return;
+            Me.CustomData += $"# {DateTime.Now:hh\\:mm\\:ss.f} {msg}\n";
         }
 
         private void SetupAirlock(EventLoop el, EventLoopTimer timer)
