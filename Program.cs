@@ -1,4 +1,4 @@
-using Sandbox.Game.EntityComponents;
+﻿using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -139,6 +139,7 @@ namespace IngameScript
                 _airlockStateMachine[AirlockState.ExtOpenIntClosedDepressurized][AirlockEvent.DoorOpenTimeout] = TaskCloseExternalDoor;
                 _airlockStateMachine[AirlockState.ExtOpenIntClosedDepressurized][AirlockEvent.SensorInside] = TaskWayIn;
                 _airlockStateMachine[AirlockState.ExtOpenIntClosedDepressurized][AirlockEvent.SensorInternal] = TaskWayIn;
+                _airlockStateMachine[AirlockState.ExtOpenIntClosedDepressurized][AirlockEvent.SensorExternal] = null;
                 _airlockStateMachine[AirlockState.ExtOpenIntOpenDepressurized][AirlockEvent.DoorOpenTimeout] = TaskCloseInternalDoor;
 
                 el.AddTask(InitializeProbes);
