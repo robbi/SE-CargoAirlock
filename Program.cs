@@ -1,4 +1,4 @@
-using Sandbox.Game.EntityComponents;
+﻿using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -247,11 +247,15 @@ Gyrophare: {hasGyro}";
                 foreach (KeyValuePair<AirlockState, Dictionary<AirlockEvent, EventLoopTask>> eventMap in _airlockStateMachine)
                 {
                     _timeoutLookup[eventMap.Key] = null;
-                    foreach (KeyValuePair<AirlockEvent, EventLoopTask> eventTask in eventMap.Value)
+                    foreach (KeyValuePair<AirlockEvent, EventLoopTask> eventEntry in eventMap.Value)
                     {
-                        if (_eventLookup.ContainsKey(eventTask.Key)) continue;
+                        if (_eventLookup.ContainsKey(eventEntry.Key)) continue;
+
+                        var eventType = eventEntry.Key;
+                        var eventTask = eventEntry.Value;
                         Func<bool> condition = null;
-                        switch (eventTask.Key)
+
+                        switch (eventType)
                         {
                             case AirlockEvent.SensorInside:
                                 condition = SensorInsideOn;
@@ -265,12 +269,12 @@ Gyrophare: {hasGyro}";
                             default:
                                 continue;
                         }
-                        _eventLookup[eventTask.Key] = el.AddProbe((el2, probe) =>
+                        _eventLookup[eventType] = el.AddProbe((el2, probe) =>
                         {
-                            el2.Debug($"OnEvent({eventTask.Key}) : {_status}", 2);
+                            el2.Debug($"OnEvent({eventType}) : {_status}", 2);
                             DisableProbes();
                             el2.ResetTimeout(_activeEventTimeout);
-                            if (eventTask.Value != null) el2.AddTask(eventTask.Value);
+                            if (eventTask != null) el2.AddTask(eventTask);
                         }, condition, 100);
                     }
                 }
