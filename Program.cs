@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -58,8 +58,8 @@ namespace IngameScript
             _actionTimeout = TimeSpan.FromSeconds(Max_action_time_in_sec >= 0.0 ? Max_action_time_in_sec : 30.0).Ticks / TimeSpan.TicksPerMillisecond;
 
             var el = InitializeEventLoop(this, 5);
-            el.SetTimeout(SetupAirlock, _setupRefreshTime);
-            el.SetTimeout(EchoScriptStatus, 1000);
+            el.SetInterval(SetupAirlock, _setupRefreshTime);
+            el.SetInterval(EchoScriptStatus, 1000);
         }
 
         public void Main(string argument, UpdateType updateSource)
@@ -86,7 +86,6 @@ namespace IngameScript
                 _cargoAirlock = new CargoAirlock(el, _doorOpenTimeout, _actionTimeout);
 
             _cargoAirlock.Setup(blockGroup, _internalDoorMarker, _externalDoorMarker);
-            timer.Reset();
         }
 
         private void EchoScriptStatus(EventLoop el, EventLoopTimer timer)
@@ -95,7 +94,6 @@ namespace IngameScript
                 Echo("No airlock managed");
             else
                 Echo(_cargoAirlock.StatusDetails());
-            timer.Reset();
         }
 
         public class CargoAirlock
@@ -274,7 +272,7 @@ Gyrophare: {hasGyro}";
                         }, condition, 100);
                     }
                 }
-                el.SetTimeout(UpdateProbes, 1000);
+                el.SetInterval(UpdateProbes, 1000);
                 _initialized = true;
             }
 
@@ -297,7 +295,7 @@ Gyrophare: {hasGyro}";
                         }
                     }
                 }
-                timer.Reset();
+                
             }
 
             private EventLoopTimerCallback OnEventTimeout(EventLoopTask task)
