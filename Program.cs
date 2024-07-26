@@ -73,7 +73,7 @@ namespace IngameScript
         public void Debug(string msg, int level=0)
         {
             if (DEBUG <= 0 || DEBUG < level) return;
-            Me.CustomData += $"# {DateTime.Now} {msg}\n";
+            Me.CustomData += $"# {DateTime.Now.TimeOfDay} {msg}\n";
         }
 
         private void SetupAirlock(EventLoop el, EventLoopTimer timer)
@@ -107,6 +107,7 @@ namespace IngameScript
             private readonly Dictionary<AirlockState, Dictionary<AirlockEvent, EventLoopTask>> _airlockStateMachine = new Dictionary<AirlockState, Dictionary<AirlockEvent, EventLoopTask>>();
             private readonly Dictionary<AirlockEvent, EventLoopProbe> _eventLookup = new Dictionary<AirlockEvent, EventLoopProbe>();
             private readonly Dictionary<AirlockState, EventLoopTimer> _timeoutLookup = new Dictionary<AirlockState, EventLoopTimer>();
+            private EventLoopTimer _activeEventTimeout = null;
 
             private List<IMyDoor> _internalDoors = new List<IMyDoor>();
             private List<IMyDoor> _externalDoors = new List<IMyDoor>();
@@ -248,6 +249,7 @@ Gyrophare: {hasGyro}";
                     _timeoutLookup[eventMap.Key] = null;
                     foreach (KeyValuePair<AirlockEvent, EventLoopTask> eventTask in eventMap.Value)
                     {
+                        if (_eventLookup.ContainsKey(eventTask.Key)) continue;
                         Func<bool> condition = null;
                         switch (eventTask.Key)
                         {
@@ -265,9 +267,9 @@ Gyrophare: {hasGyro}";
                         }
                         _eventLookup[eventTask.Key] = el.AddProbe((el2, probe) =>
                         {
-                            el2.Debug($"OnEvent({eventMap.Key},{eventTask.Key}) vs {_status}", 2);
+                            el2.Debug($"OnEvent({eventTask.Key}) : {_status}", 2);
                             DisableProbes();
-                            el2.ResetTimeout(_timeoutLookup[eventMap.Key]);
+                            el2.ResetTimeout(_activeEventTimeout);
                             if (eventTask.Value != null) el2.AddTask(eventTask.Value);
                         }, condition, 100);
                     }
@@ -279,7 +281,15 @@ Gyrophare: {hasGyro}";
             private void UpdateProbes(EventLoop el, EventLoopTimer timer)
             {
                 int countActive = 0;
+
                 DisableProbes();
+                if (_activeEventTimeout != _timeoutLookup[_status])
+                {
+                    el.Debug($"UpdateProbes active timeout not for {_status}");
+                    el.CancelTimeout(_activeEventTimeout);
+                }
+                _activeEventTimeout = null;
+
                 Dictionary<AirlockEvent, EventLoopTask> eventMap;
                 if (_airlockStateMachine.TryGetValue(_status, out eventMap))
                 {
@@ -288,7 +298,10 @@ Gyrophare: {hasGyro}";
                         if (eventTask.Key == AirlockEvent.DoorOpenTimeout)
                         {
                             if (_timeoutLookup[_status] == null)
+                            {
                                 _timeoutLookup[_status] = el.SetTimeout(OnEventTimeout(eventTask.Value, _status), _doorOpenTimeout);
+                            }
+                            _activeEventTimeout = _timeoutLookup[_status];
                         }
                         else if (_eventLookup.ContainsKey(eventTask.Key))
                         {
@@ -308,11 +321,16 @@ Gyrophare: {hasGyro}";
 
             private EventLoopTimerCallback OnEventTimeout(EventLoopTask task, AirlockState state)
             {
-                return (el2, _) => {
-                    el2.Debug($"OnEventTimeout({state}) vs {_status}", 2);
-                    _timeoutLookup[state] = null;
+                return (el, timer) => {
+                    el.Debug($"OnEventTimeout({state}) vs {_status}", 2);
+                    if (timer != _activeEventTimeout)
+                    {
+                        el.Debug($"OnEventTimeout active timeout differs from self !", 1);
+                        el.CancelTimeout(_activeEventTimeout);
+                    }
+                    _timeoutLookup[state] = _activeEventTimeout = null;
                     DisableProbes();
-                    el2.AddTask(task);
+                    el.AddTask(task);
                 };
             }
 
