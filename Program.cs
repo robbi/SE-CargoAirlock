@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -25,7 +25,7 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        private const int DEBUG = 3;
+        private const int DEBUG = 0;
         private const string Manage_group_named = "CargoAirlock";
         private const string Interior_door_name = "internal";
         private const string Exterior_door_name = "external";
@@ -70,7 +70,7 @@ namespace IngameScript
             }
         }
 
-        public void Debug(string msg, int level=0)
+        public void Debug(string msg, int level = 0)
         {
             if (DEBUG <= 0 || (DEBUG & level) == 0) return;
             Me.CustomData += $"# {DateTime.Now:hh\\:mm\\:ss.f} {msg}\n";
@@ -252,9 +252,7 @@ Gyrophare: {hasGyro}";
                         if (_eventLookup.ContainsKey(eventEntry.Key)) continue;
 
                         var eventType = eventEntry.Key;
-                        var eventTask = eventEntry.Value;
                         Func<bool> condition = null;
-
                         switch (eventType)
                         {
                             case AirlockEvent.SensorInside:
@@ -269,13 +267,7 @@ Gyrophare: {hasGyro}";
                             default:
                                 continue;
                         }
-                        _eventLookup[eventType] = el.AddProbe((el2, probe) =>
-                        {
-                            el2.Debug($"OnEvent({eventType}) : {_status}", 2);
-                            DisableProbes();
-                            el2.ResetTimeout(_activeEventTimeout);
-                            if (eventTask != null) el2.AddTask(eventTask);
-                        }, condition, 100);
+                        _eventLookup[eventType] = el.AddProbe(OnEvent(eventType), condition, 100);
                     }
                 }
                 el.SetInterval(UpdateProbes, 1000);
@@ -287,7 +279,7 @@ Gyrophare: {hasGyro}";
                 int countActive = 0;
 
                 DisableProbes();
-                if (_activeEventTimeout != _timeoutLookup[_status])
+                if (_activeEventTimeout != null && _timeoutLookup.ContainsKey(_status) && _activeEventTimeout != _timeoutLookup[_status])
                 {
                     el.Debug($"UpdateProbes active timeout not for {_status}");
                     el.CancelTimeout(_activeEventTimeout);
@@ -301,7 +293,7 @@ Gyrophare: {hasGyro}";
                     {
                         if (eventTask.Key == AirlockEvent.DoorOpenTimeout)
                         {
-                            if (_timeoutLookup[_status] == null)
+                            if (!_timeoutLookup.ContainsKey(_status) || _timeoutLookup[_status] == null)
                             {
                                 _timeoutLookup[_status] = el.SetTimeout(OnEventTimeout(eventTask.Value, _status), _doorOpenTimeout);
                             }
@@ -314,7 +306,7 @@ Gyrophare: {hasGyro}";
                         }
                     }
                 }
-                
+
                 el.Debug($"UpdateProbes {countActive} active", 2);
             }
 
@@ -323,16 +315,44 @@ Gyrophare: {hasGyro}";
                 foreach (var probe in _eventLookup.Values) probe.Disable();
             }
 
+            private void CancelEventTimeout(EventLoop el)
+            {
+                EventLoopTimer eventTimeout;
+                _timeoutLookup.TryGetValue(_status, out eventTimeout);
+                if (_activeEventTimeout != eventTimeout)
+                {
+                    el.Debug($"CancelEventTimeout active timeout not same as {_status}");
+                    el.CancelTimeout(eventTimeout);
+                }
+                el.CancelTimeout(_activeEventTimeout);
+                _timeoutLookup[_status] = _activeEventTimeout = null;
+            }
+
+            private EventLoopProbeCallback OnEvent(AirlockEvent eventType)
+            {
+                return (el, probe) =>
+                {
+                    el.Debug($"OnEvent({eventType}) : {_status}", 2);
+                    DisableProbes();
+                    CancelEventTimeout(el);
+                    if (_airlockStateMachine.ContainsKey(_status))
+                    {
+                        var eventMap = _airlockStateMachine[_status];
+                        if (eventMap.ContainsKey(eventType))
+                        {
+                            var eventTask = eventMap[eventType];
+                            if (eventTask != null) el.AddTask(eventTask);
+                        }
+                    }
+                };
+            }
+
             private EventLoopTimerCallback OnEventTimeout(EventLoopTask task, AirlockState state)
             {
-                return (el, timer) => {
-                    el.Debug($"OnEventTimeout({state}) vs {_status}", 2);
-                    if (timer != _activeEventTimeout)
-                    {
-                        el.Debug($"OnEventTimeout active timeout differs from self !", 1);
-                        el.CancelTimeout(_activeEventTimeout);
-                    }
-                    _timeoutLookup[state] = _activeEventTimeout = null;
+                return (el, timer) =>
+                {
+                    el.Debug($"OnEventTimeout({state}) : {_status}", 2);
+                    CancelEventTimeout(el);
                     DisableProbes();
                     el.AddTask(task);
                 };
@@ -396,6 +416,7 @@ Gyrophare: {hasGyro}";
                 if ((_status & AirlockState.Error) != 0) yield break;
                 yield return el.WaitFor(SensorInsideOff, 100, _errorTimeout);
                 _status &= ~AirlockState.ExitCycling;
+                el.Debug($"TaskWayOut finished", 1);
             }
 
             private IEnumerable<EventLoopTask> TaskWayIn(EventLoop el)
@@ -410,7 +431,7 @@ Gyrophare: {hasGyro}";
                 if ((_status & AirlockState.Error) != 0) yield break;
                 yield return el.WaitFor(SensorInsideOff, 100, _errorTimeout);
                 _status &= ~AirlockState.EntryCycling;
-
+                el.Debug($"TaskWayIn finished", 1);
             }
 
             private IEnumerable<EventLoopTask> TaskDepressurize(EventLoop el)
