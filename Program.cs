@@ -266,7 +266,7 @@ Gyrophare: {hasGyro}";
                         }
                         _eventLookup[eventTask.Key] = el.AddProbe((el2, probe) =>
                         {
-                            probe.Disable();
+                            DisableProbes();
                             el2.ResetTimeout(_timeoutLookup[eventMap.Key]);
                             el2.AddTask(eventTask.Value);
                         }, condition, 100);
@@ -278,7 +278,7 @@ Gyrophare: {hasGyro}";
 
             private void UpdateProbes(EventLoop el, EventLoopTimer timer)
             {
-                foreach (var probe in _eventLookup.Values) probe.Disable();
+                DisableProbes();
                 Dictionary<AirlockEvent, EventLoopTask> eventMap;
                 if (_airlockStateMachine.TryGetValue(_status, out eventMap))
                 {
@@ -287,7 +287,7 @@ Gyrophare: {hasGyro}";
                         if (eventTask.Key == AirlockEvent.DoorOpenTimeout)
                         {
                             if (_timeoutLookup[_status] == null)
-                                _timeoutLookup[_status] = el.SetTimeout(OnEventTimeout(eventTask.Value), _doorOpenTimeout);
+                                _timeoutLookup[_status] = el.SetTimeout(OnEventTimeout(eventTask.Value, _status), _doorOpenTimeout);
                         }
                         else if (_eventLookup.ContainsKey(eventTask.Key))
                         {
@@ -298,11 +298,16 @@ Gyrophare: {hasGyro}";
                 
             }
 
-            private EventLoopTimerCallback OnEventTimeout(EventLoopTask task)
+            private void DisableProbes()
+            {
+                foreach (var probe in _eventLookup.Values) probe.Disable();
+            }
+
+            private EventLoopTimerCallback OnEventTimeout(EventLoopTask task, AirlockState state)
             {
                 return (el2, _) => {
-                    _timeoutLookup[_status] = null;
-                    foreach (var probe in _eventLookup.Values) probe.Disable();
+                    _timeoutLookup[state] = null;
+                    DisableProbes();
                     el2.AddTask(task);
                 };
             }
