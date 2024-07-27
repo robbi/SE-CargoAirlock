@@ -1,4 +1,4 @@
-using Sandbox.Game.EntityComponents;
+﻿using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -111,9 +111,10 @@ namespace IngameScript
             private readonly Dictionary<AirlockState, EventLoopTimer> _timeoutLookup = new Dictionary<AirlockState, EventLoopTimer>();
             private EventLoopTimer _activeEventTimeout = null;
 
-            private List<IMyDoor> _internalDoors = new List<IMyDoor>();
-            private List<IMyDoor> _externalDoors = new List<IMyDoor>();
-            private List<IMyAirVent> _airVents = new List<IMyAirVent>();
+            private readonly List<IMyTerminalBlock> _blocks = new List<IMyTerminalBlock>();
+            private readonly List<IMyDoor> _internalDoors = new List<IMyDoor>();
+            private readonly List<IMyDoor> _externalDoors = new List<IMyDoor>();
+            private readonly List<IMyAirVent> _airVents = new List<IMyAirVent>();
             private IMySensorBlock _internalSensor;
             private IMySensorBlock _externalSensor;
             private IMySensorBlock _insideSensor;
@@ -147,7 +148,7 @@ namespace IngameScript
                 el.AddTask(InitializeProbes);
             }
 
-            public void Setup(IMyBlockGroup blockGroup, string lcInteriorSuffix, string lcExteriorSuffix)
+            public void Setup(IMyBlockGroup blockGroup, string interiorMarker, string exteriorMarker)
             {
                 _name = blockGroup == null ? "<undefined>" : blockGroup.Name;
 
@@ -161,48 +162,97 @@ namespace IngameScript
                 _gyrophare = null;
 
                 if (blockGroup == null) return;
-                //TODO optimize block parsing
-                //TODO identify change and keep refs if not
 
-                var doors = new List<IMyDoor>();
-                blockGroup.GetBlocksOfType(doors, block => block.IsFunctional);
-                if (doors.Count == 0) return;
-
-                foreach (var door in doors)
+                _blocks.Clear();
+                blockGroup.GetBlocks(_blocks);
+                foreach (var block in _blocks)
                 {
-                    var doorName = door.CustomName.ToLower();
-                    if (doorName.Contains(lcInteriorSuffix)) _internalDoors.Add(door);
-                    if (doorName.Contains(lcExteriorSuffix)) _externalDoors.Add(door);
+                    if (block is IMyDoor)
+                    {
+                        IMyDoor door = (IMyDoor)block;
+                        var doorName = door.CustomName.ToLower();
+                        if (doorName.Contains(interiorMarker)) _internalDoors.Add(door);
+                        if (doorName.Contains(exteriorMarker)) _externalDoors.Add(door);
+                        continue;
+                    }
+                    if (block is IMySensorBlock)
+                    {
+                        IMySensorBlock sensor = (IMySensorBlock)block;
+                        var sensorName = sensor.CustomName.ToLower();
+                        if (sensorName.Contains(interiorMarker))
+                        {
+                            _internalSensor = sensor;
+                        }
+                        else if (sensorName.Contains(exteriorMarker))
+                        {
+                            _externalSensor = sensor;
+                        }
+                        else
+                        {
+                            _insideSensor = sensor;
+                        }
+                        continue;
+                    }
+                    if (block is IMyAirVent)
+                    {
+                        _airVents.Add((IMyAirVent)block);
+                        continue;
+                    }
+                    if (block is IMyLightingBlock)
+                    {
+                        IMyLightingBlock light = (IMyLightingBlock)block;
+                        var lightName = light.CustomName.ToLower();
+                        if (lightName.Contains("gyro"))
+                        {
+                            _gyrophare = light;
+                            continue;
+                        }
+                        _lights.Add(light);
+                        continue;
+                    }
                 }
-                doors.Clear();
+                _blocks.Clear();
 
-                blockGroup.GetBlocksOfType(_airVents, block => block.IsFunctional);
+                // var doors = new List<IMyDoor>();
+                // blockGroup.GetBlocksOfType(doors, block => block.IsFunctional);
+                // if (doors.Count == 0) return;
 
-                var sensors = new List<IMySensorBlock>();
-                blockGroup.GetBlocksOfType(sensors);
-                foreach (var sensor in sensors)
-                {
-                    var sensorName = sensor.CustomName.ToLower();
-                    if (sensorName.Contains(lcInteriorSuffix))
-                    {
-                        _internalSensor = sensor;
-                    }
-                    else if (sensorName.Contains(lcExteriorSuffix))
-                    {
-                        _externalSensor = sensor;
-                    }
-                    else
-                    {
-                        _insideSensor = sensor;
-                    }
-                }
-                sensors.Clear();
+                // foreach (var door in doors)
+                // {
+                //     var doorName = door.CustomName.ToLower();
+                //     if (doorName.Contains(interiorMarker)) _internalDoors.Add(door);
+                //     if (doorName.Contains(exteriorMarker)) _externalDoors.Add(door);
+                // }
+                // doors.Clear();
 
-                blockGroup.GetBlocksOfType(_lights);
-                _gyrophare = _lights.Find(x => x.CustomName.ToLower().Contains("gyro"));
-                if (_gyrophare != null) _lights.Remove(_gyrophare);
-                _lights.Sort(SortByName);
+                // blockGroup.GetBlocksOfType(_airVents, block => block.IsFunctional);
 
+                // var sensors = new List<IMySensorBlock>();
+                // blockGroup.GetBlocksOfType(sensors);
+                // foreach (var sensor in sensors)
+                // {
+                //     var sensorName = sensor.CustomName.ToLower();
+                //     if (sensorName.Contains(interiorMarker))
+                //     {
+                //         _internalSensor = sensor;
+                //     }
+                //     else if (sensorName.Contains(exteriorMarker))
+                //     {
+                //         _externalSensor = sensor;
+                //     }
+                //     else
+                //     {
+                //         _insideSensor = sensor;
+                //     }
+                // }
+                // sensors.Clear();
+
+                // blockGroup.GetBlocksOfType(_lights);
+                // _gyrophare = _lights.Find(x => x.CustomName.ToLower().Contains("gyro"));
+                // if (_gyrophare != null) _lights.Remove(_gyrophare);
+                // _lights.Sort(SortByName);
+
+                //TODO: set state if needed
                 if (InternalDoorOpen()) SetInternalDoorState(AirlockState.InternalDoorOpen);
                 else if (InternalDoorClosed()) SetInternalDoorState(AirlockState.InternalDoorClosed);
                 if (ExternalDoorOpen()) SetExternalDoorState(AirlockState.ExternalDoorOpen);
