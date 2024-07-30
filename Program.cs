@@ -222,44 +222,6 @@ namespace IngameScript
                 }
                 _blocks.Clear();
 
-                // var doors = new List<IMyDoor>();
-                // blockGroup.GetBlocksOfType(doors, block => block.IsFunctional);
-                // if (doors.Count == 0) return;
-
-                // foreach (var door in doors)
-                // {
-                //     var doorName = door.CustomName.ToLower();
-                //     if (doorName.Contains(interiorMarker)) _internalDoors.Add(door);
-                //     if (doorName.Contains(exteriorMarker)) _externalDoors.Add(door);
-                // }
-                // doors.Clear();
-
-                // blockGroup.GetBlocksOfType(_airVents, block => block.IsFunctional);
-
-                // var sensors = new List<IMySensorBlock>();
-                // blockGroup.GetBlocksOfType(sensors);
-                // foreach (var sensor in sensors)
-                // {
-                //     var sensorName = sensor.CustomName.ToLower();
-                //     if (sensorName.Contains(interiorMarker))
-                //     {
-                //         _internalSensor = sensor;
-                //     }
-                //     else if (sensorName.Contains(exteriorMarker))
-                //     {
-                //         _externalSensor = sensor;
-                //     }
-                //     else
-                //     {
-                //         _insideSensor = sensor;
-                //     }
-                // }
-                // sensors.Clear();
-
-                // blockGroup.GetBlocksOfType(_lights);
-                // _gyrophare = _lights.Find(x => x.CustomName.ToLower().Contains("gyro"));
-                // if (_gyrophare != null) _lights.Remove(_gyrophare);
-
                 if (_externalDoors.Count == 0) return;
                 
                 // Calculate external position
@@ -370,23 +332,22 @@ Gyrophare: {hasGyro}";
                 _activeEventTimeout = null;
 
                 Dictionary<AirlockEvent, EventLoopTask> eventMap;
-                if (_airlockStateMachine.TryGetValue(_status, out eventMap))
+                if (!_airlockStateMachine.TryGetValue(_status, out eventMap))
+                    return;
+                foreach (KeyValuePair<AirlockEvent, EventLoopTask> eventTask in eventMap)
                 {
-                    foreach (KeyValuePair<AirlockEvent, EventLoopTask> eventTask in eventMap)
+                    if (eventTask.Key == AirlockEvent.DoorOpenTimeout)
                     {
-                        if (eventTask.Key == AirlockEvent.DoorOpenTimeout)
+                        if (!_timeoutLookup.ContainsKey(_status) || _timeoutLookup[_status] == null)
                         {
-                            if (!_timeoutLookup.ContainsKey(_status) || _timeoutLookup[_status] == null)
-                            {
-                                _timeoutLookup[_status] = el.SetTimeout(OnEventTimeout(eventTask.Value, _status), _doorOpenTimeout);
-                            }
-                            _activeEventTimeout = _timeoutLookup[_status];
+                            _timeoutLookup[_status] = el.SetTimeout(OnEventTimeout(eventTask.Value, _status), _doorOpenTimeout);
                         }
-                        else if (_eventLookup.ContainsKey(eventTask.Key))
-                        {
-                            _eventLookup[eventTask.Key].Enable();
-                            countActive++;
-                        }
+                        _activeEventTimeout = _timeoutLookup[_status];
+                    }
+                    else if (_eventLookup.ContainsKey(eventTask.Key))
+                    {
+                        _eventLookup[eventTask.Key].Enable();
+                        countActive++;
                     }
                 }
 
@@ -624,7 +585,6 @@ Gyrophare: {hasGyro}";
             private bool InternalDoorOpen() => _internalDoors.TrueForAll(door => door.Status == DoorStatus.Open);
             private bool SensorInsideOff() => !_insideSensor.IsActive;
             private bool SensorInsideOn() => _insideSensor.IsActive;
-            private bool SensorOnlyInsideOn() => _insideSensor.IsActive && !_internalSensor.IsActive && !_externalSensor.IsActive;
             private bool SensorInternalOn() => _internalSensor.IsActive;
             private bool SensorExternalOn() => _externalSensor.IsActive;
             private bool AirVentsDepressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Depressurized || vent.GetOxygenLevel() < 0.01);
