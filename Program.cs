@@ -25,7 +25,7 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        // private const int DEBUG = 0; //DEBUG
+        //TODO read parameters using MyIni
         private const string Manage_group_named = "CargoAirlock";
         private const string Interior_door_name = "internal";
         private const string Exterior_door_name = "external";
@@ -48,8 +48,6 @@ namespace IngameScript
 
         public Program()
         {
-            Me.CustomData = "";
-
             _managedGroupMarker = string.IsNullOrWhiteSpace(Manage_group_named) ? "cargoairlock" : Manage_group_named.ToLower();
             _internalDoorMarker = string.IsNullOrWhiteSpace(Interior_door_name) ? "internal" : Interior_door_name.ToLower();
             _externalDoorMarker = string.IsNullOrWhiteSpace(Exterior_door_name) ? "external" : Exterior_door_name.ToLower();
@@ -69,14 +67,6 @@ namespace IngameScript
                 RunEventLoop();
             }
         }
-
-        //DEBUG begin
-        // public void Debug(string msg, int level = 0)
-        // {
-        //     if (DEBUG <= 0 || (DEBUG & level) == 0) return;
-        //     Me.CustomData += $"# {DateTime.Now:hh\\:mm\\:ss.f} {msg}\n";
-        // }
-        //DEBUG end
 
         private void SetupAirlock(EventLoop el, EventLoopTimer timer)
         {
@@ -326,7 +316,6 @@ Gyrophare: {hasGyro}";
                 DisableProbes();
                 if (_activeEventTimeout != null && _timeoutLookup.ContainsKey(_status) && _activeEventTimeout != _timeoutLookup[_status])
                 {
-                    // el.Debug($"UpdateProbes active timeout not for {_status}"); //DEBUG
                     el.CancelTimeout(_activeEventTimeout);
                 }
                 _activeEventTimeout = null;
@@ -350,8 +339,6 @@ Gyrophare: {hasGyro}";
                         countActive++;
                     }
                 }
-
-                // el.Debug($"UpdateProbes {countActive} active", 2); //DEBUG
             }
 
             private void DisableProbes()
@@ -365,7 +352,6 @@ Gyrophare: {hasGyro}";
                 _timeoutLookup.TryGetValue(_status, out eventTimeout);
                 if (_activeEventTimeout != eventTimeout)
                 {
-                    // el.Debug($"CancelEventTimeout active timeout not same as {_status}"); //DEBUG
                     el.CancelTimeout(eventTimeout);
                 }
                 el.CancelTimeout(_activeEventTimeout);
@@ -376,7 +362,6 @@ Gyrophare: {hasGyro}";
             {
                 return (el, probe) =>
                 {
-                    // el.Debug($"OnEvent({eventType}) : {_status}", 2); //DEBUG
                     DisableProbes();
                     CancelEventTimeout(el);
                     if (_airlockStateMachine.ContainsKey(_status))
@@ -395,7 +380,6 @@ Gyrophare: {hasGyro}";
             {
                 return (el, timer) =>
                 {
-                    // el.Debug($"OnEventTimeout({state}) : {_status}", 2); //DEBUG
                     CancelEventTimeout(el);
                     DisableProbes();
                     el.AddTask(task);
@@ -404,7 +388,6 @@ Gyrophare: {hasGyro}";
 
             private IEnumerable<EventLoopTask> TaskCloseExternalDoor(EventLoop el)
             {
-                // el.Debug($"TaskCloseExternalDoor() : {_status}", 1); //DEBUG
                 SetExternalDoorState(AirlockState.ExternalDoorClosing);
                 _externalDoors.ForEach(door => door.CloseDoor());
                 yield return el.WaitFor(ExternalDoorClosed, 100, _errorTimeout);
@@ -416,7 +399,6 @@ Gyrophare: {hasGyro}";
 
             private IEnumerable<EventLoopTask> TaskCloseInternalDoor(EventLoop el)
             {
-                // el.Debug($"TaskCloseInternalDoor() : {_status}", 1); //DEBUG
                 SetInternalDoorState(AirlockState.InternalDoorClosing);
                 _internalDoors.ForEach(door => door.CloseDoor());
                 yield return el.WaitFor(InternalDoorClosed, 100, _errorTimeout);
@@ -428,7 +410,6 @@ Gyrophare: {hasGyro}";
 
             private IEnumerable<EventLoopTask> TaskOpenExternalDoor(EventLoop el)
             {
-                // el.Debug($"TaskOpenExternalDoor() : {_status}", 1); //DEBUG
                 SetExternalDoorState(AirlockState.ExternalDoorOpening);
                 _externalDoors.ForEach(door => door.OpenDoor());
                 yield return el.WaitFor(ExternalDoorOpen, 100, _errorTimeout);
@@ -439,7 +420,6 @@ Gyrophare: {hasGyro}";
             }
             private IEnumerable<EventLoopTask> TaskOpenInternalDoor(EventLoop el)
             {
-                // el.Debug($"TaskOpenInternalDoor() : {_status}", 1); //DEBUG
                 SetInternalDoorState(AirlockState.InternalDoorOpening);
                 _internalDoors.ForEach(door => door.OpenDoor());
                 yield return el.WaitFor(InternalDoorOpen, 100, _errorTimeout);
@@ -450,7 +430,6 @@ Gyrophare: {hasGyro}";
             }
             private IEnumerable<EventLoopTask> TaskWayOut(EventLoop el)
             {
-                // el.Debug($"TaskWayOut() : {_status}", 1); //DEBUG
                 _status |= AirlockState.ExitCycling;
                 EventLoopTimer lightsTimer = null;
                 if (!AirVentsPressurized()) goto TerminateTask;
@@ -477,12 +456,10 @@ Gyrophare: {hasGyro}";
                 el.CancelTimeout(lightsTimer);
                 TurnOffLights();
                 _status &= ~AirlockState.ExitCycling;
-                // el.Debug($"TaskWayOut finished", 1); //DEBUG
             }
 
             private IEnumerable<EventLoopTask> TaskWayIn(EventLoop el)
             {
-                // el.Debug($"TaskWayIn() : {_status}", 1); //DEBUG
                 _status |= AirlockState.EntryCycling;
                 EventLoopTimer lightsTimer = null;
                 if (!AirVentsDepressurized()) goto TerminateTask;
@@ -509,12 +486,10 @@ Gyrophare: {hasGyro}";
                 el.CancelTimeout(lightsTimer);
                 TurnOffLights();
                 _status &= ~AirlockState.EntryCycling;
-                // el.Debug($"TaskWayIn finished", 1); //DEBUG
             }
 
             private IEnumerable<EventLoopTask> TaskDepressurize(EventLoop el)
             {
-                // el.Debug($"TaskDepressurize() : {_status}", 1); //DEBUG
                 _airVents.ForEach(airVent => airVent.Depressurize = true);
                 if (_gyrophare != null) _gyrophare.Enabled = true;
                 SetAirState(AirlockState.AirDepressurizing);
@@ -525,7 +500,6 @@ Gyrophare: {hasGyro}";
 
             private IEnumerable<EventLoopTask> TaskPressurize(EventLoop el)
             {
-                // el.Debug($"TaskPressurize() : {_status}", 1); //DEBUG
                 _airVents.ForEach(airVent => airVent.Depressurize = false);
                 if (_gyrophare != null) _gyrophare.Enabled = true;
                 SetAirState(AirlockState.AirPressurizing);
