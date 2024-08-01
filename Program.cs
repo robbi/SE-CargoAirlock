@@ -1,4 +1,4 @@
-using Sandbox.Game.EntityComponents;
+﻿using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -263,18 +263,9 @@ namespace IngameScript
             public string StatusDetails()
             {
                 var title = _name + "\n" + new String('-', 50);
-                var internalDoorStatus = (_status & AirlockState.InternalDoorClosed) != 0 ? "closed" :
-                    (_status & AirlockState.InternalDoorClosing) != 0 ? "closing" :
-                    (_status & AirlockState.InternalDoorOpen) != 0 ? "open" :
-                    (_status & AirlockState.InternalDoorOpening) != 0 ? "opening" : "unknown";
-                var externalDoorStatus = (_status & AirlockState.ExternalDoorClosed) != 0 ? "closed" :
-                    (_status & AirlockState.ExternalDoorClosing) != 0 ? "closing" :
-                    (_status & AirlockState.ExternalDoorOpen) != 0 ? "open" :
-                    (_status & AirlockState.ExternalDoorOpening) != 0 ? "opening" : "unknown";
-                var airStatus = (_status & AirlockState.AirPressurized) != 0 ? "pressurized" :
-                    (_status & AirlockState.AirPressurizing) != 0 ? "pressurizing" :
-                    (_status & AirlockState.AirDepressurized) != 0 ? "depressurized" :
-                    (_status & AirlockState.AirDepressurizing) != 0 ? "depressurizing" : "unknown";
+                var internalDoorStatus = GetDoorsStatus(_internalDoors)?.ToString() ?? "unknown";
+                var externalDoorStatus = GetDoorsStatus(_externalDoors)?.ToString() ?? "unknown";
+                var airStatus = GetAirVentsStatus()?.ToString() ?? "unknown";
                 var insideSensorStatus = _insideSensor == null ? "unknown" : _insideSensor.IsActive ? "active" : "inactive";
                 var internalSensorStatus = _internalSensor == null ? "unknown" : _internalSensor.IsActive ? "active" : "inactive";
                 var externalSensorStatus = _externalSensor == null ? "unknown" : _externalSensor.IsActive ? "active" : "inactive";
@@ -289,6 +280,28 @@ Internal sensor: {internalSensorStatus}
 External sensor: {externalSensorStatus}
 {_lights.Count} lights
 Gyrophare: {hasGyro}";
+            }
+
+            private static DoorStatus? GetDoorsStatus(List<IMyDoor> doors)
+            {
+                DoorStatus? status = null;
+                foreach (var door in doors)
+                {
+                    if (status == null) status = door.Status;
+                    else if (status != door.Status) return null;
+                }
+                return status;
+            }
+
+            private VentStatus? GetAirVentsStatus()
+            {
+                VentStatus? status = null;
+                foreach (var airVent in _airVents)
+                {
+                    if (status == null) status = airVent.Status;
+                    else if (status != airVent.Status) return null;
+                }
+                return status;
             }
 
             private IEnumerable<EventLoopTask> TaskCloseExternalDoor(EventLoop el)
