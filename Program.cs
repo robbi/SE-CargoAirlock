@@ -113,7 +113,7 @@ namespace IngameScript
             {
                 _doorOpenTimeout = doorOpenTimeout;
                 _errorTimeout = errorTimeout;
-                
+
                 var sm = new StateMachine<AirlockState, AirlockEvent>(updateInterval: 100);
                 _stateMachine = sm;
                 sm.SetEventTimeout(AirlockState.ExtOpenIntOpenPressurized, doorOpenTimeout, TaskCloseExternalDoor);
@@ -137,7 +137,7 @@ namespace IngameScript
             }
 
             private void SetStatus(AirlockState status) => _stateMachine.SetState(status);
-            private void SetErrorStatus() => SetStatus(_stateMachine.CurrentState | AirlockState.Error);
+            private void SetErrorStatus() => _stateMachine.SetState(_stateMachine.CurrentState | AirlockState.Error);
 
             public void Setup(IMyBlockGroup blockGroup, string interiorMarker, string exteriorMarker)
             {
@@ -238,7 +238,7 @@ namespace IngameScript
                 else if (InternalDoorClosed()) blocksState = AirlockState.InternalDoorClosed;
                 if (blocksState != AirlockState.Unknown && (currentState & AirlockState.InternalDoor) != blocksState)
                     SetInternalDoorState(blocksState);
-                
+
                 if (ExternalDoorOpen()) blocksState = AirlockState.ExternalDoorOpen;
                 else if (ExternalDoorClosed()) blocksState = AirlockState.ExternalDoorClosed;
                 else blocksState = AirlockState.Unknown;
@@ -296,6 +296,66 @@ Gyrophare: {hasGyro}";
                 return status;
             }
 
+            private IEnumerable<EventLoopTask> TaskWayIn(EventLoop el)
+            {
+                SetStatus(_stateMachine.CurrentState | AirlockState.EntryCycling);
+                EventLoopTimer lightsTimer = null;
+                if (!AirVentsDepressurized()) goto TerminateTask;
+                TurnOffLights();
+                yield return TaskOpenExternalDoor;
+                if (ErrorStatus) yield break;
+                lightsTimer = el.SetInterval(RollLights, _rollingLightTime);
+                while (true)
+                {
+                    yield return _stateMachine.WaitFor(SensorInsideOn, _errorTimeout);
+                    if (SensorExternalOn()) continue;
+                    if (!SensorInsideOn()) goto TerminateTask;
+                    break;
+                }
+                yield return TaskCloseExternalDoor;
+                if (ErrorStatus) yield break;
+                yield return TaskPressurize;
+                if (ErrorStatus) yield break;
+                yield return TaskOpenInternalDoor;
+                if (ErrorStatus) yield break;
+                yield return _stateMachine.WaitFor(SensorInsideOff, _errorTimeout);
+
+            TerminateTask:
+                el.CancelTimer(lightsTimer);
+                TurnOffLights();
+                SetStatus(_stateMachine.CurrentState & ~AirlockState.EntryCycling);
+            }
+
+            private IEnumerable<EventLoopTask> TaskWayOut(EventLoop el)
+            {
+                SetStatus(_stateMachine.CurrentState | AirlockState.ExitCycling);
+                EventLoopTimer lightsTimer = null;
+                if (!AirVentsPressurized()) goto TerminateTask;
+                TurnOffLights();
+                yield return TaskOpenInternalDoor;
+                if (ErrorStatus) yield break;
+                lightsTimer = el.SetInterval(RollLightsReverse, _rollingLightTime);
+                while (true)
+                {
+                    yield return _stateMachine.WaitFor(SensorInsideOn, _errorTimeout);
+                    if (SensorInternalOn()) continue;
+                    if (!SensorInsideOn()) goto TerminateTask;
+                    break;
+                }
+                yield return TaskCloseInternalDoor;
+                if (ErrorStatus) yield break;
+                yield return TaskDepressurize;
+                if (ErrorStatus) yield break;
+                yield return TaskOpenExternalDoor;
+                if (ErrorStatus) yield break;
+                yield return _stateMachine.WaitFor(SensorInsideOff, _errorTimeout);
+
+            TerminateTask:
+                el.CancelTimer(lightsTimer);
+                TurnOffLights();
+                SetStatus(_stateMachine.CurrentState & ~AirlockState.ExitCycling);
+            }
+
             private IEnumerable<EventLoopTask> TaskCloseExternalDoor(EventLoop el)
             {
                 SetExternalDoorState(AirlockState.ExternalDoorClosing);
@@ -328,6 +388,7 @@ Gyrophare: {hasGyro}";
                 else
                     SetErrorStatus();
             }
+
             private IEnumerable<EventLoopTask> TaskOpenInternalDoor(EventLoop el)
             {
                 SetInternalDoorState(AirlockState.InternalDoorOpening);
@@ -337,65 +398,6 @@ Gyrophare: {hasGyro}";
                     SetInternalDoorState(AirlockState.InternalDoorOpen);
                 else
                     SetErrorStatus();
-            }
-            private IEnumerable<EventLoopTask> TaskWayOut(EventLoop el)
-            {
-                SetStatus(_stateMachine.CurrentState | AirlockState.ExitCycling);
-                EventLoopTimer lightsTimer = null;
-                if (!AirVentsPressurized()) goto TerminateTask;
-                TurnOffLights();
-                yield return TaskOpenInternalDoor;
-                if (ErrorStatus) yield break;
-                lightsTimer = el.SetInterval(RollLightsReverse, _rollingLightTime);
-                while (true)
-                {
-                    yield return _stateMachine.WaitFor(SensorInsideOn, _errorTimeout);
-                    if (SensorInternalOn()) continue;
-                    if (!SensorInsideOn()) goto TerminateTask;
-                    break;
-                }
-                yield return TaskCloseInternalDoor;
-                if (ErrorStatus) yield break;
-                yield return TaskDepressurize;
-                if (ErrorStatus) yield break;
-                yield return TaskOpenExternalDoor;
-                if (ErrorStatus) yield break;
-                yield return _stateMachine.WaitFor(SensorInsideOff, _errorTimeout);
-
-            TerminateTask:
-                el.CancelTimer(lightsTimer);
-                TurnOffLights();
-                SetStatus(_stateMachine.CurrentState & ~AirlockState.ExitCycling);
-            }
-
-            private IEnumerable<EventLoopTask> TaskWayIn(EventLoop el)
-            {
-                SetStatus(_stateMachine.CurrentState | AirlockState.EntryCycling);
-                EventLoopTimer lightsTimer = null;
-                if (!AirVentsDepressurized()) goto TerminateTask;
-                TurnOffLights();
-                yield return TaskOpenExternalDoor;
-                if (ErrorStatus) yield break;
-                lightsTimer = el.SetInterval(RollLights, _rollingLightTime);
-                while (true)
-                {
-                    yield return _stateMachine.WaitFor(SensorInsideOn, _errorTimeout);
-                    if (SensorExternalOn()) continue;
-                    if (!SensorInsideOn()) goto TerminateTask;
-                    break;
-                }
-                yield return TaskCloseExternalDoor;
-                if (ErrorStatus) yield break;
-                yield return TaskPressurize;
-                if (ErrorStatus) yield break;
-                yield return TaskOpenInternalDoor;
-                if (ErrorStatus) yield break;
-                yield return _stateMachine.WaitFor(SensorInsideOff, _errorTimeout);
-
-            TerminateTask:
-                el.CancelTimer(lightsTimer);
-                TurnOffLights();
-                SetStatus(_stateMachine.CurrentState & ~AirlockState.EntryCycling);
             }
 
             private IEnumerable<EventLoopTask> TaskDepressurize(EventLoop el)
@@ -511,7 +513,6 @@ Gyrophare: {hasGyro}";
 
                 ExternalDoor = ExternalDoorClosed | ExternalDoorClosing | ExternalDoorOpen | ExternalDoorOpening,
                 InternalDoor = InternalDoorClosed | InternalDoorClosing | InternalDoorOpen | InternalDoorOpening,
-                Doors = ExternalDoor | InternalDoor,
                 Air = AirPressurized | AirPressurizing | AirDepressurized | AirDepressurizing,
 
                 ExtOpenIntOpenDepressurized = ExternalDoorOpen | InternalDoorOpen | AirDepressurized,
@@ -522,14 +523,6 @@ Gyrophare: {hasGyro}";
                 ExtClosedIntOpenPressurized = ExternalDoorClosed | InternalDoorOpen | AirPressurized,
                 ExtOpenIntClosedPressurized = ExternalDoorOpen | InternalDoorClosed | AirPressurized,
                 ExtClosedIntClosedPressurized = ExternalDoorClosed | InternalDoorClosed | AirPressurized,
-                ExtOpenIntClosedDepressurizedOnWayIn = ExternalDoorOpen | InternalDoorClosed | AirDepressurized | EntryCycling,
-                ExtClosedIntClosedDepressurizedOnWayIn = ExternalDoorClosed | InternalDoorClosed | AirDepressurized | EntryCycling,
-                ExtClosedIntOpenPressurizedOnWayIn = ExternalDoorClosed | InternalDoorOpen | AirPressurized | EntryCycling,
-                ExtClosedIntClosedPressurizedOnWayIn = ExternalDoorClosed | InternalDoorClosed | AirPressurized | EntryCycling,
-                ExtOpenIntClosedDepressurizedOnWayOut = ExternalDoorOpen | InternalDoorClosed | AirDepressurized | ExitCycling,
-                ExtClosedIntClosedDepressurizedOnWayOut = ExternalDoorClosed | InternalDoorClosed | AirDepressurized | ExitCycling,
-                ExtClosedIntOpenPressurizedOnWayOut = ExternalDoorClosed | InternalDoorOpen | AirPressurized | ExitCycling,
-                ExtClosedIntClosedPressurizedOnWayOut = ExternalDoorClosed | InternalDoorClosed | AirPressurized | ExitCycling,
             }
 
             enum AirlockEvent : uint
