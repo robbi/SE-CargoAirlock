@@ -102,6 +102,7 @@ namespace IngameScript
             private IMySensorBlock _externalSensor;
             private IMySensorBlock _insideSensor;
             private readonly List<WayLight> _lights = new List<WayLight>();
+            private readonly List<RollingLights> _lightsLines = new List<RollingLights>();
             private IMyLightingBlock _gyrophare = null;
             private Vector3I _externalDoorPosition;
 
@@ -147,6 +148,7 @@ namespace IngameScript
                 _insideSensor = null;
                 var oldWayLights = _lights.ToArray();
                 _lights.Clear();
+                foreach (var line in _lightsLines) line.Lights.Clear();
                 _gyrophare = null;
 
                 if (blockGroup == null) return;
@@ -227,6 +229,25 @@ namespace IngameScript
                     }
                 }
                 _lights.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+                foreach (var light in _lights)
+                {
+                    RollingLights bestLine = null;
+                    foreach (var line in _lightsLines)
+                    {
+                        var lineDistance = line.Lights.LastOrDefault()?.Block.Position.RectangularDistance(light.Block.Position) ?? 0;
+                        if (lineDistance <= 2)
+                        {
+                            bestLine = line;
+                            break;
+                        }
+                    }
+                    if (bestLine == null)
+                    {
+                        bestLine = new RollingLights(new List<WayLight>(), _rollingLightTime, _rollingLightOnCount, _defaultEventLoop);
+                        _lightsLines.Add(bestLine);
+                    }
+                    bestLine.Lights.Add(light);
+                }
 
                 AirlockState currentState = _stateMachine.CurrentState;
                 AirlockState blocksState = AirlockState.Unknown;
@@ -266,7 +287,7 @@ Status: {_stateMachine.CurrentState}
 SAS inside sensor: {insideSensorStatus}
 Internal sensor: {internalSensorStatus}
 External sensor: {externalSensorStatus}
-{_lights.Count} lights
+{_lights.Count} lights in {_lightsLines.Count} lines
 Gyrophare: {hasGyro}";
             }
 
@@ -295,12 +316,11 @@ Gyrophare: {hasGyro}";
             private IEnumerable<EventLoopTask> TaskWayIn(EventLoop el)
             {
                 SetStatus(_stateMachine.CurrentState | AirlockState.EntryCycling);
-                EventLoopTimer lightsTimer = null;
                 if (!AirVentsDepressurized()) goto TerminateTask;
                 TurnOffLights();
                 yield return TaskOpenExternalDoor;
                 if (ErrorStatus) yield break;
-                lightsTimer = el.SetInterval(RollLights, _rollingLightTime);
+                foreach (var line in _lightsLines) line.Start();
                 while (true)
                 {
                     yield return _stateMachine.WaitFor(SensorInsideOn, _errorTimeout);
@@ -317,7 +337,7 @@ Gyrophare: {hasGyro}";
                 yield return _stateMachine.WaitFor(SensorInsideOff, _errorTimeout);
 
             TerminateTask:
-                el.CancelTimer(lightsTimer);
+                foreach (var line in _lightsLines) line.Stop();
                 TurnOffLights();
                 SetStatus(_stateMachine.CurrentState & ~AirlockState.EntryCycling);
             }
@@ -325,12 +345,11 @@ Gyrophare: {hasGyro}";
             private IEnumerable<EventLoopTask> TaskWayOut(EventLoop el)
             {
                 SetStatus(_stateMachine.CurrentState | AirlockState.ExitCycling);
-                EventLoopTimer lightsTimer = null;
                 if (!AirVentsPressurized()) goto TerminateTask;
                 TurnOffLights();
                 yield return TaskOpenInternalDoor;
                 if (ErrorStatus) yield break;
-                lightsTimer = el.SetInterval(RollLightsReverse, _rollingLightTime);
+                foreach (var line in _lightsLines) line.Start(true);
                 while (true)
                 {
                     yield return _stateMachine.WaitFor(SensorInsideOn, _errorTimeout);
@@ -347,7 +366,7 @@ Gyrophare: {hasGyro}";
                 yield return _stateMachine.WaitFor(SensorInsideOff, _errorTimeout);
 
             TerminateTask:
-                el.CancelTimer(lightsTimer);
+                foreach (var line in _lightsLines) line.Stop();
                 TurnOffLights();
                 SetStatus(_stateMachine.CurrentState & ~AirlockState.ExitCycling);
             }
@@ -419,45 +438,12 @@ Gyrophare: {hasGyro}";
                 if (_gyrophare != null) _gyrophare.Enabled = false;
             }
 
-            private int _rollingLightIndex;
-
-            private void RollLights(EventLoop el, EventLoopTimer timer)
-            {
-                var lightsCount = _lights.Count;
-                if (lightsCount == 0) return;
-                var lightIndex = (0 <= _rollingLightIndex && _rollingLightIndex < lightsCount) ? _rollingLightIndex : lightsCount - 1;
-                _lights[lightIndex].Block.Enabled = false;
-                lightIndex = (lightIndex + 1) % lightsCount;
-                _rollingLightIndex = lightIndex;
-                for (int i = 0; i < _rollingLightOnCount; i++)
-                {
-                    _lights[lightIndex].Block.Enabled = true;
-                    lightIndex = (lightIndex + 1) % lightsCount;
-                }
-            }
-
-            private void RollLightsReverse(EventLoop el, EventLoopTimer timer)
-            {
-                var lightsCount = _lights.Count;
-                if (lightsCount == 0) return;
-                var lightIndex = (0 <= _rollingLightIndex && _rollingLightIndex < lightsCount) ? _rollingLightIndex : 0;
-                _lights[lightIndex].Block.Enabled = false;
-                lightIndex = (lightIndex + lightsCount - 1) % lightsCount;
-                _rollingLightIndex = lightIndex;
-                for (int i = 0; i < _rollingLightOnCount; i++)
-                {
-                    _lights[lightIndex].Block.Enabled = true;
-                    lightIndex = (lightIndex + lightsCount - 1) % lightsCount;
-                }
-            }
-
             private void TurnOffLights()
             {
                 foreach (var light in _lights)
                 {
                     light.Block.Enabled = false;
                 }
-                _rollingLightIndex = -1;
             }
 
             private bool ErrorStatus => (_stateMachine.CurrentState & AirlockState.Error) != 0;
@@ -485,6 +471,77 @@ Gyrophare: {hasGyro}";
                 {
                     Block = light;
                 }
+            }
+
+            class RollingLights
+            {
+                private readonly List<WayLight> _lights;
+                private readonly EventLoop _eventLoop;
+                private int _index = -1;
+                private EventLoopTimer _timer = null;
+                private int _lightsOnCount;
+                private long _intervalTime;
+
+                public List<WayLight> Lights => _lights;
+
+                public RollingLights(List<WayLight> lights, long intervalTime, int lightsOnCount, EventLoop eventLoop)
+                {
+                    _lights = lights;
+                    _eventLoop = eventLoop;
+                    _lightsOnCount = lightsOnCount;
+                    _intervalTime = intervalTime;
+                }
+
+                public void Start(bool reverse = false)
+                {
+                    if (_lights.Count == 0) return;
+                    if (reverse)
+                        _timer = _eventLoop.SetInterval(RollLightsReverse, _intervalTime);
+                    else
+                        _timer = _eventLoop.SetInterval(RollLights, _intervalTime);
+                    _index = -1;
+                }
+
+                public void Stop()
+                {
+                    _eventLoop.CancelTimer(_timer);
+                    _timer = null;
+                }
+
+                private void RollLights(EventLoop el, EventLoopTimer timer)
+                {
+                    var lightsCount = _lights.Count;
+                    if (lightsCount == 0) return;
+                    var lightIndex = (0 <= _index && _index < lightsCount) ? _index : lightsCount - 1;
+                    var countOn = _lightsOnCount < 0 ? lightsCount - _lightsOnCount : _lightsOnCount;
+                    countOn = countOn <= 1 ? 1 : countOn >= lightsCount ? lightsCount - 1 : countOn;
+                    _lights[lightIndex].Block.Enabled = false;
+                    lightIndex = (lightIndex + 1) % lightsCount;
+                    _index = lightIndex;
+                    for (int i = 0; i < countOn; i++)
+                    {
+                        _lights[lightIndex].Block.Enabled = true;
+                        lightIndex = (lightIndex + 1) % lightsCount;
+                    }
+                }
+
+                private void RollLightsReverse(EventLoop el, EventLoopTimer timer)
+                {
+                    var lightsCount = _lights.Count;
+                    if (lightsCount == 0) return;
+                    var lightIndex = (0 <= _index && _index < lightsCount) ? _index : 0;
+                    var countOn = _lightsOnCount < 0 ? lightsCount - _lightsOnCount : _lightsOnCount;
+                    countOn = countOn <= 1 ? 1 : countOn >= lightsCount ? lightsCount - 1 : countOn;
+                    _lights[lightIndex].Block.Enabled = false;
+                    lightIndex = (lightIndex + lightsCount - 1) % lightsCount;
+                    _index = lightIndex;
+                    for (int i = 0; i < countOn; i++)
+                    {
+                        _lights[lightIndex].Block.Enabled = true;
+                        lightIndex = (lightIndex + lightsCount - 1) % lightsCount;
+                    }
+                }
+
             }
 
             [Flags]
