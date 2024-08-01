@@ -1,1 +1,9 @@
-﻿Cargo Airlock
+﻿Cargo Airlock - CustomData available configuration
+
+  [CargoAirlock]
+  Manage_group_name = CargoAirlock
+  Interior_door_name = internal
+  Exterior_door_name = external
+  Block_setup_refresh_time_in_sec = 15
+  Min_time_doors_kept_open_in_sec = 5
+  Max_action_time_in_sec = 30

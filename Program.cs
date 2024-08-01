@@ -26,35 +26,31 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        //TODO read parameters using MyIni
-        private const string Manage_group_named = "CargoAirlock";
-        private const string Interior_door_name = "internal";
-        private const string Exterior_door_name = "external";
-        private const double Block_setup_refresh_time_in_sec = 15;
-        private const double Min_time_doors_kept_open_in_sec = 5;
-        private const double Max_action_time_in_sec = 30;
+        const string SECTION = "CargoAirlock";
+        readonly MyIni _ini = new MyIni();
+        readonly string _managedGroupMarker;
+        readonly string _internalDoorMarker;
+        readonly string _externalDoorMarker;
+        readonly long _setupRefreshTime;
+        readonly long _doorOpenTimeout;
+        readonly long _actionTimeout;
 
-        /*
-         * Please do not change anything past this point
-         */
-        private readonly string _managedGroupMarker;
-        private readonly string _internalDoorMarker;
-        private readonly string _externalDoorMarker;
-        private readonly long _setupRefreshTime;
-        private readonly long _doorOpenTimeout;
-        private readonly long _actionTimeout;
-
-        private readonly List<IMyBlockGroup> _blockGroups = new List<IMyBlockGroup>();
-        private CargoAirlock _cargoAirlock;
+        readonly List<IMyBlockGroup> _blockGroups = new List<IMyBlockGroup>();
+        CargoAirlock _cargoAirlock;
 
         public Program()
         {
-            _managedGroupMarker = string.IsNullOrWhiteSpace(Manage_group_named) ? "cargoairlock" : Manage_group_named.ToLower();
-            _internalDoorMarker = string.IsNullOrWhiteSpace(Interior_door_name) ? "internal" : Interior_door_name.ToLower();
-            _externalDoorMarker = string.IsNullOrWhiteSpace(Exterior_door_name) ? "external" : Exterior_door_name.ToLower();
-            _setupRefreshTime = TimeSpan.FromSeconds(Block_setup_refresh_time_in_sec > 0.0 ? Block_setup_refresh_time_in_sec : 15.0).Ticks / TimeSpan.TicksPerMillisecond;
-            _doorOpenTimeout = TimeSpan.FromSeconds(Min_time_doors_kept_open_in_sec >= 0.0 ? Min_time_doors_kept_open_in_sec : 5.0).Ticks / TimeSpan.TicksPerMillisecond;
-            _actionTimeout = TimeSpan.FromSeconds(Max_action_time_in_sec >= 0.0 ? Max_action_time_in_sec : 30.0).Ticks / TimeSpan.TicksPerMillisecond;
+            MyIniParseResult result;
+            if (!_ini.TryParse(Me.CustomData, out result)) throw new Exception(result.ToString());
+            _managedGroupMarker = _ini.Get(SECTION, "Manage_group_name").ToString();
+            _managedGroupMarker = string.IsNullOrWhiteSpace(_managedGroupMarker) ? "cargoairlock" : _managedGroupMarker.ToLower().Trim();
+            _internalDoorMarker = _ini.Get(SECTION, "Interior_door_name").ToString();
+            _internalDoorMarker = string.IsNullOrWhiteSpace(_internalDoorMarker) ? "internal" : _internalDoorMarker.ToLower().Trim();
+            _externalDoorMarker = _ini.Get(SECTION, "Exterior_door_name").ToString();
+            _externalDoorMarker = string.IsNullOrWhiteSpace(_externalDoorMarker) ? "external" : _externalDoorMarker.ToLower().Trim();
+            _setupRefreshTime = (long)(_ini.Get(SECTION, "Block_setup_refresh_time_in_sec").ToDouble(15.0) * TimeSpan.TicksPerSecond);
+            _doorOpenTimeout = (long)(_ini.Get(SECTION, "Min_time_doors_kept_open_in_sec").ToDouble(5.0) * TimeSpan.TicksPerSecond);
+            _actionTimeout = (long)(_ini.Get(SECTION, "Max_action_time_in_sec").ToDouble(30.0) * TimeSpan.TicksPerSecond);
 
             var el = InitializeEventLoop(this, 5);
             el.SetInterval(SetupAirlock, _setupRefreshTime);
