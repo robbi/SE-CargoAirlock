@@ -1,0 +1,4 @@
+[submodule "StateMachine"]
+	path = StateMachine
+	url = https://github.com/robbi/SE-StateMachine
+	branch = main

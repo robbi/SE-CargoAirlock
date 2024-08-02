@@ -5,12 +5,7 @@ VisualStudioVersion = 17.5.002.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CargoAirlock", "CargoAirlock.csproj", "{5E18CA35-E110-4AA5-A5B1-A926F794EF13}"
 EndProject
-Project("0004291E-2A0B-460D-934E-DC6B0785DB48") = "StateMachine", "..\StateMachine\StateMachine.shproj", "{8A3CDCC5-4B55-4D87-A415-698A0E1FF06F}"
-EndProject
 Global
-	GlobalSection(SharedMSBuildProjectFiles) = preSolution
-		..\StateMachine\StateMachine.projitems*{8a3cdcc5-4b55-4d87-a415-698a0e1ff06f}*SharedItemsImports = 13
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
@@ -20,10 +15,6 @@ Global
 		{5E18CA35-E110-4AA5-A5B1-A926F794EF13}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5E18CA35-E110-4AA5-A5B1-A926F794EF13}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5E18CA35-E110-4AA5-A5B1-A926F794EF13}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8A3CDCC5-4B55-4D87-A415-698A0E1FF06F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8A3CDCC5-4B55-4D87-A415-698A0E1FF06F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8A3CDCC5-4B55-4D87-A415-698A0E1FF06F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8A3CDCC5-4B55-4D87-A415-698A0E1FF06F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

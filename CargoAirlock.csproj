@@ -20,6 +20,4 @@
       <AdditionalFiles Include="Instructions.readme" />
     </ItemGroup>
 
-    <Import Project="..\StateMachine\StateMachine.projitems" Label="Shared" />
-
 </Project>
