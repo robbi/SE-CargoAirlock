@@ -421,6 +421,7 @@ Gyrophare: {hasGyro}";
                 if (_gyrophare != null) _gyrophare.Enabled = true;
                 SetAirState(AirlockState.AirDepressurizing);
                 yield return _stateMachine.WaitFor(AirVentsDepressurized, _errorTimeout);
+                yield return el.Sleep(1000);
                 SetAirState(AirlockState.AirDepressurized);
                 if (_gyrophare != null) _gyrophare.Enabled = false;
             }
@@ -431,6 +432,7 @@ Gyrophare: {hasGyro}";
                 if (_gyrophare != null) _gyrophare.Enabled = true;
                 SetAirState(AirlockState.AirPressurizing);
                 yield return _stateMachine.WaitFor(AirVentsPressurized, _errorTimeout);
+                yield return el.Sleep(1000);
                 if (AirVentsPressurized())
                     SetAirState(AirlockState.AirPressurized);
                 else
@@ -455,8 +457,8 @@ Gyrophare: {hasGyro}";
             private bool SensorInsideOn() => _insideSensor.IsActive;
             private bool SensorInternalOn() => _internalSensor.IsActive;
             private bool SensorExternalOn() => _externalSensor.IsActive;
-            private bool AirVentsDepressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Depressurized || vent.GetOxygenLevel() < 0.01);
-            private bool AirVentsPressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Pressurized || vent.GetOxygenLevel() > 0.99);
+            private bool AirVentsDepressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Depressurized || vent.GetOxygenLevel() == 0);
+            private bool AirVentsPressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Pressurized || vent.GetOxygenLevel() == 1);
 
             private void SetExternalDoorState(AirlockState x) => SetStatus((_stateMachine.CurrentState & ~AirlockState.ExternalDoor) | x);
             private void SetInternalDoorState(AirlockState x) => SetStatus((_stateMachine.CurrentState & ~AirlockState.InternalDoor) | x);
