@@ -1,4 +1,4 @@
-using Sandbox.Game.EntityComponents;
+﻿using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -421,6 +421,7 @@ Gyrophare: {hasGyro}";
                 if (_gyrophare != null) _gyrophare.Enabled = true;
                 SetAirState(AirlockState.AirDepressurizing);
                 yield return _stateMachine.WaitFor(AirVentsDepressurized, _errorTimeout);
+                yield return el.Sleep(1000);
                 SetAirState(AirlockState.AirDepressurized);
                 if (_gyrophare != null) _gyrophare.Enabled = false;
             }
@@ -431,6 +432,7 @@ Gyrophare: {hasGyro}";
                 if (_gyrophare != null) _gyrophare.Enabled = true;
                 SetAirState(AirlockState.AirPressurizing);
                 yield return _stateMachine.WaitFor(AirVentsPressurized, _errorTimeout);
+                yield return el.Sleep(1000);
                 if (AirVentsPressurized())
                     SetAirState(AirlockState.AirPressurized);
                 else
