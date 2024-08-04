@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -455,8 +455,8 @@ Gyrophare: {hasGyro}";
             private bool SensorInsideOn() => _insideSensor.IsActive;
             private bool SensorInternalOn() => _internalSensor.IsActive;
             private bool SensorExternalOn() => _externalSensor.IsActive;
-            private bool AirVentsDepressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Depressurized || vent.GetOxygenLevel() < 0.01);
-            private bool AirVentsPressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Pressurized || vent.GetOxygenLevel() > 0.99);
+            private bool AirVentsDepressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Depressurized || vent.GetOxygenLevel() == 0);
+            private bool AirVentsPressurized() => _airVents.TrueForAll(vent => vent.Status == VentStatus.Pressurized || vent.GetOxygenLevel() == 1);
 
             private void SetExternalDoorState(AirlockState x) => SetStatus((_stateMachine.CurrentState & ~AirlockState.ExternalDoor) | x);
             private void SetInternalDoorState(AirlockState x) => SetStatus((_stateMachine.CurrentState & ~AirlockState.InternalDoor) | x);
